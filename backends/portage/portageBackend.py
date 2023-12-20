@@ -27,10 +27,6 @@ import signal
 import sys
 import traceback
 from collections import defaultdict
-try:
-    from itertools import izip
-except ImportError:
-    izip = zip
 
 # packagekit imports
 from packagekit.backend import (
@@ -199,7 +195,7 @@ class PortageBridge():
         """Set portage settings."""
         self.settings.unlock()
 
-        for key, value in mapping.items():
+        for key, value in list(mapping.items()):
             self.settings[key] = value
             self.settings.backup_changes(key)
 
@@ -300,7 +296,7 @@ class PackageKitPortageMixin(object):
         Return PackageKit group belonging to given Portage package.
         """
         category = portage.versions.catsplit(cp)[0]
-        group_data = [key for key, data in self._get_portage_groups().items()
+        group_data = [key for key, data in list(self._get_portage_groups().items())
                       if category in data['categories']]
         try:
             generic_group_name = group_data.pop(0)
@@ -315,7 +311,7 @@ class PackageKitPortageMixin(object):
         """
         group_map = PackageKitPortageBackend.GROUP_MAP
         # reverse dict
-        group_map_reverse = dict((y, x) for x, y in group_map.items())
+        group_map_reverse = dict((y, x) for x, y in list(group_map.items()))
         return group_map_reverse.get(pk_group, 'unknown')
 
     def _get_ebuild_settings(self, cpv, metadata):
@@ -464,7 +460,7 @@ class PackageKitPortageMixin(object):
                             vartree=self.pvar.vardb)
 
         contents = db.getcontents()
-        return contents.keys() if contents else []
+        return list(contents.keys()) if contents else []
 
     def _cmp_cpv(self, cpv1, cpv2):
         '''
@@ -506,7 +502,7 @@ class PackageKitPortageMixin(object):
             keys.extend(list(db._aux_cache_keys))
 
         if in_dict:
-            return dict(izip(keys, db.aux_get(cpv, keys)))
+            return dict(zip(keys, db.aux_get(cpv, keys)))
         else:
             return db.aux_get(cpv, keys)
 
@@ -566,7 +562,7 @@ class PackageKitPortageMixin(object):
             backup_licenses = self.pvar.settings["ACCEPT_LICENSE"]
 
             self.pvar.apply_settings({'ACCEPT_LICENSE': licences})
-            cpv_list = filter(_has_validLicense, cpv_list)
+            cpv_list = list(filter(_has_validLicense, cpv_list))
             self.pvar.apply_settings({'ACCEPT_LICENSE': backup_licenses})
 
         return cpv_list
@@ -585,7 +581,7 @@ class PackageKitPortageMixin(object):
         cpv_dict = self._get_cpv_slotted(cpv_list)
 
         # slots are sorted (dict), revert them to have newest slots first
-        slots = cpv_dict.keys()
+        slots = list(cpv_dict.keys())
         slots.reverse()
 
         # empty cpv_list, cpv are now in cpv_dict and cpv_list gonna be repop
@@ -696,7 +692,7 @@ class PackageKitPortageMixin(object):
                 portage.dep.dep_getkey(cpv)
             )
             if key_dict:
-                for keys in key_dict.values():
+                for keys in list(key_dict.values()):
                     keyword.extend(keys)
 
         if not keywords:
@@ -772,7 +768,7 @@ class PackageKitPortageMixin(object):
         # remove cpv_input that may be added to the list
         def filter_cpv_input(x):
             return x.cpv not in cpv_input
-        return filter(filter_cpv_input, packages_list)
+        return list(filter(filter_cpv_input, packages_list))
 
 
 class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
@@ -908,13 +904,13 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
             return cpv[0] != 'installed'
 
         # removing packages going to be uninstalled
-        cpv_list = filter(_filter_uninstall, cpv_list)
+        cpv_list = list(filter(_filter_uninstall, cpv_list))
 
         # install filter
         if FILTER_INSTALLED in filters:
-            cpv_list = filter(_filter_installed, cpv_list)
+            cpv_list = list(filter(_filter_installed, cpv_list))
         if FILTER_NOT_INSTALLED in filters:
-            cpv_list = filter(_filter_not_installed, cpv_list)
+            cpv_list = list(filter(_filter_not_installed, cpv_list))
 
         # now we can change cpv_list to a real cpv list
         tmp_list = cpv_list[:]
@@ -939,7 +935,7 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
         progress = PackagekitProgress(compute_equal_steps(pkgs))
         self.percentage(progress.percent)
 
-        for percentage, pkg in izip(progress, pkgs):
+        for percentage, pkg in zip(progress, pkgs):
             cpv = self._id_to_cpv(pkg)
 
             if not self._is_cpv_valid(cpv):
@@ -974,7 +970,7 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
         progress = PackagekitProgress(compute_equal_steps(pkgs))
         self.percentage(progress.percent)
 
-        for percentage, pkg in izip(progress, pkgs):
+        for percentage, pkg in zip(progress, pkgs):
             cpv = self._id_to_cpv(pkg)
 
             if not self._is_cpv_valid(cpv):
@@ -1002,7 +998,7 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
         cp_list = self._get_all_cp(filters)
         progress = PackagekitProgress(compute_equal_steps(cp_list))
 
-        for percentage, cp in izip(progress, cp_list):
+        for percentage, cp in zip(progress, cp_list):
             for cpv in self._get_all_cpv(cp, filters):
                 try:
                     self._package(cpv)
@@ -1146,7 +1142,7 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
             dict_down = {}
 
             # candidate slots are installed slots
-            slots = cpv_dict_inst.keys()
+            slots = list(cpv_dict_inst.keys())
             slots.reverse()
 
             for s in slots:
@@ -1464,7 +1460,7 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
         # specifications says "be case sensitive"
         s = re.compile(reg_expr)
 
-        for percentage, cp in izip(progress, cp_list):
+        for percentage, cp in zip(progress, cp_list):
             if s.match(cp):
                 for cpv in self._get_all_cpv(cp, filters):
                     self._package(cpv)
@@ -1484,7 +1480,7 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
         progress = PackagekitProgress(compute_equal_steps(cp_list))
         self.percentage(progress.percent)
 
-        for percentage, cp in izip(progress, cp_list):
+        for percentage, cp in zip(progress, cp_list):
             # unfortunatelly, everything is related to cpv, not cp
             # can't filter cp
             cpv_list = []
@@ -1542,7 +1538,7 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
         progress = PackagekitProgress(compute_equal_steps(values))
         self.percentage(progress.percent)
 
-        for percentage, key in izip(progress, values):
+        for percentage, key in zip(progress, values):
 
             if key[0] != "/":
                 is_full_path = False
@@ -1574,7 +1570,7 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
         progress = PackagekitProgress(compute_equal_steps(cp_list))
         self.percentage(progress.percent)
 
-        for percentage, cp in izip(progress, cp_list):
+        for percentage, cp in zip(progress, cp_list):
             for group in groups:
                 if self._get_pk_group(cp) == group:
                     for cpv in self._get_all_cpv(cp, filters):
@@ -1618,7 +1614,7 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
         progress = PackagekitProgress(compute_equal_steps(cp_list))
         self.percentage(progress.percent)
 
-        for percentage, cp in izip(progress, cp_list):
+        for percentage, cp in zip(progress, cp_list):
             if category_filter:
                 cat, pkg_name = portage.versions.catsplit(cp)
                 if cat != category_filter:
