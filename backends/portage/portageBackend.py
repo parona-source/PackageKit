@@ -32,10 +32,6 @@ try:
 except ImportError:
     izip = zip
 
-# layman imports (>=2)
-import layman.config
-import layman.db
-import layman.remotedb
 # packagekit imports
 from packagekit.backend import (
     PackageKitBaseBackend,
@@ -68,6 +64,7 @@ from portage.exception import InvalidAtom
 # TODO:
 # remove percentage(None) if percentage is used
 # protection against signal when installing/removing
+# add repository management back
 
 # Map Gentoo categories to the PackageKit group name space
 
@@ -243,9 +240,6 @@ class PackageKitPortageMixin(object):
 
     def _is_only_download(self, transaction_flags):
         return TRANSACTION_FLAG_ONLY_DOWNLOAD in transaction_flags
-
-    def _is_repo_enabled(self, layman_db, repo_name):
-        return repo_name in layman_db.overlays.keys()
 
     def _get_search_list(self, keys_list):
         '''
@@ -1019,36 +1013,6 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
 
         self.percentage(100)
 
-    def get_repo_list(self, filters):
-        """ Get list of repository.
-
-        Get the list of repository tagged as official and supported by current
-        setup of layman.
-
-        Adds a dummy entry for gentoo-x86 official tree even though it appears
-        in layman's listing nowadays.
-        """
-        self.status(STATUS_INFO)
-        self.allow_cancel(True)
-        self.percentage(None)
-
-        conf = layman.config.BareConfig()
-        conf.set_option('quiet', True)
-        installed_layman_db = layman.db.DB(conf)
-        available_layman_db = layman.remotedb.RemoteDB(conf)
-
-        # 'gentoo' is a dummy repo
-        self.repo_detail('gentoo', 'Gentoo Portage tree', True)
-
-        if FILTER_NOT_DEVELOPMENT not in filters:
-            for repo_name, overlay in available_layman_db.overlays.items():
-                if overlay.is_official() and overlay.is_supported():
-                    self.repo_detail(
-                        repo_name,
-                        overlay.name,
-                        self._is_repo_enabled(installed_layman_db, repo_name)
-                    )
-
     def required_by(self, filters, pkgs, recursive):
         # TODO: manage non-installed package
 
@@ -1358,37 +1322,6 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
 
         self._signal_config_update()
 
-    def refresh_cache(self, force):
-        # NOTES: can't manage progress even if it could be better
-        # TODO: do not wait for exception, check timestamp
-        # TODO: message if overlay repo has changed (layman)
-        self.status(STATUS_REFRESH_CACHE)
-        self.allow_cancel(False)
-        self.percentage(None)
-
-        myopts = {'--quiet': True}
-
-        conf = layman.config.BareConfig()
-        conf.set_option('quiet', True)
-        installed_layman_db = layman.db.DB(conf)
-
-        if force:
-            timestamp_path = os.path.join(self.pvar.settings["PORTDIR"],
-                                          "metadata", "timestamp.chk")
-            if os.access(timestamp_path, os.F_OK):
-                os.remove(timestamp_path)
-
-        try:
-            self._block_output()
-            for overlay in installed_layman_db.overlays.keys():
-                installed_layman_db.sync(overlay)
-            _emerge.actions.action_sync(self.pvar.settings, self.pvar.trees,
-                                        self.pvar.mtimedb, myopts, "")
-        except:
-            self.error(ERROR_INTERNAL_ERROR, traceback.format_exc())
-        finally:
-            self._unblock_output()
-
     def remove_packages(self, transaction_flags, pkgs, allowdep, autoremove):
         return self._remove_packages(transaction_flags, pkgs, allowdep, autoremove)
 
@@ -1514,56 +1447,6 @@ class PackageKitPortageBackend(PackageKitPortageMixin, PackageKitBaseBackend):
         #     XXX: Message no loger exists so we will remove this
         #     self.message(MESSAGE_UNKNOWN, msg)
         self._elog_messages = []
-
-    def repo_enable(self, repoid, enable):
-        # NOTES: use layman API >= 1.2.3
-        self.status(STATUS_INFO)
-        self.allow_cancel(True)
-        self.percentage(None)
-
-        # special case: trying to work with gentoo repo
-        if repoid == 'gentoo':
-            if not enable:
-                self.error(ERROR_CANNOT_DISABLE_REPOSITORY,
-                           "gentoo repository can't be disabled")
-            return
-
-        conf = layman.config.BareConfig()
-        conf.set_option('quiet', True)
-        installed_layman_db = layman.db.DB(conf)
-        available_layman_db = layman.remotedb.RemoteDB(conf)
-
-        # check now for repoid so we don't have to do it after
-        if repoid not in available_layman_db.overlays.keys():
-            self.error(ERROR_REPO_NOT_FOUND,
-                       "Repository %s was not found" % repoid)
-            return
-
-        # disabling (removing) a db
-        # if repository already disabled, ignoring
-        if not enable and self._is_repo_enabled(installed_layman_db, repoid):
-            try:
-                installed_layman_db.delete(installed_layman_db.select(repoid))
-            except Exception as exc:
-                self.error(ERROR_INTERNAL_ERROR,
-                           "Failed to disable repository %s: %s" %
-                           (repoid, str(exc)))
-                return
-
-        # enabling (adding) a db
-        # if repository already enabled, ignoring
-        if enable and not self._is_repo_enabled(installed_layman_db, repoid):
-            try:
-                # TODO: clean the trick to prevent outputs from layman
-                self._block_output()
-                installed_layman_db.add(available_layman_db.select(repoid))
-                self._unblock_output()
-            except Exception as exc:
-                self._unblock_output()
-                self.error(ERROR_INTERNAL_ERROR,
-                           "Failed to enable repository %s: %s" %
-                           (repoid, str(exc)))
-                return
 
     def resolve(self, filters, pkgs):
         self.status(STATUS_QUERY)

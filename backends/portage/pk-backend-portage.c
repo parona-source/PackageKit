@@ -238,19 +238,6 @@ pk_backend_install_packages (PkBackend *backend, PkBackendJob *job, PkBitfield t
 }
 
 void
-pk_backend_refresh_cache (PkBackend *backend, PkBackendJob *job, gboolean force)
-{ 
-	/* check network state */
-	if (!pk_backend_is_online (backend)) {
-		pk_backend_job_error_code (job, PK_ERROR_ENUM_NO_NETWORK, "Cannot refresh cache whilst offline");
-		pk_backend_job_finished (job);
-		return;
-	}
-
-	pk_backend_spawn_helper (spawn, job, BACKEND_FILE, "refresh-cache", pk_backend_bool_to_string (force), NULL);
-}
-
-void
 pk_backend_remove_packages (PkBackend *backend, PkBackendJob *job, PkBitfield transaction_flags, gchar **package_ids, gboolean allow_deps, gboolean autoremove)
 {
 	gchar *package_ids_temp;
@@ -261,12 +248,6 @@ pk_backend_remove_packages (PkBackend *backend, PkBackendJob *job, PkBitfield tr
 	pk_backend_spawn_helper (spawn, job, BACKEND_FILE, "remove-packages", transaction_flags_temp, package_ids_temp, pk_backend_bool_to_string (allow_deps), pk_backend_bool_to_string (autoremove), NULL);
 	g_free (transaction_flags_temp);
 	g_free (package_ids_temp);
-}
-
-void
-pk_backend_repo_enable (PkBackend *backend, PkBackendJob *job, const gchar *rid, gboolean enabled)
-{
-	pk_backend_spawn_helper (spawn, job, BACKEND_FILE, "repo-enable", rid, pk_backend_bool_to_string (enabled), NULL);
 }
 
 void
@@ -308,7 +289,7 @@ pk_backend_search_files (PkBackend *backend, PkBackendJob *job, PkBitfield filte
 
 void
 pk_backend_search_groups (PkBackend *backend, PkBackendJob *job, PkBitfield filters, gchar **values)
-{ 
+{
 	gchar *filters_text;
 	gchar *search;
 	filters_text = pk_filter_bitfield_to_string (filters);
@@ -355,18 +336,8 @@ pk_backend_get_packages (PkBackend *backend, PkBackendJob *job, PkBitfield filte
 }
 
 void
-pk_backend_get_repo_list (PkBackend *backend, PkBackendJob *job, PkBitfield filters)
-{
-	gchar *filters_text;
-
-	filters_text = pk_filter_bitfield_to_string (filters);
-	pk_backend_spawn_helper (spawn, job, BACKEND_FILE, "get-repo-list", filters_text, NULL);
-	g_free (filters_text);
-}
-
-void
 pk_backend_required_by (PkBackend *backend, PkBackendJob *job, PkBitfield filters, gchar **package_ids, gboolean recursive)
-{ 
+{
 	gchar *package_ids_temp;
 	gchar *filters_text;
 
