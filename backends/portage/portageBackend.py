@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # vim:set shiftwidth=4 tabstop=4 expandtab:
 #
